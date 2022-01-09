@@ -1,4 +1,4 @@
-# solar-basin-dynamics
+# piezoaxionic-effect
 
 Code repository for the paper **The Piezoaxionic Effect** by Asimina Arvanitaki, Amalia Madden, and Ken Van Tilburg. [arXiv:2112.11466]
 
@@ -8,7 +8,7 @@ Axion dark matter (DM) constitutes an oscillating background that violates parit
 
 ## Code
 
-The [code](code/) folder contains various Jupyter notebooks that reproduce the plots in the paper, which are in the [figs](figs/) folder. These are linked to from the paper.
+The [code](code/) folder contains various Jupyter notebooks that reproduce the plots in the paper, which are in the [figs](figs/) folder. These are linked to from the paper. All code is written in natural units with hbar = c = k_B = 1, with constants defined in [my_units.py](code/my_units.py).
 
 ## Authors
 
