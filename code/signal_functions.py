@@ -164,7 +164,7 @@ def fn_Z_squid_p(omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f):
     return omega**2 * k_f**2 * (L_1 * L_2) / (1j * omega * L_2 + 1j * omega * L_1 + fn_Z_squid_t(omega, L_squid, R_squid, L_i, k_i))
 
 # total circuit impedance
-def fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel):
+def fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel):
     """Total impedance of primary circuit: crystal equivalent circuit of N_series * N_parallel crystals, input inductor, input circuit capacitor, squid back-impedance; as a function of:
     -- angular frequency omega
     -- crystal thickness l = l_1
@@ -175,6 +175,7 @@ def fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_
     -- dynamical inductance L_squid and resistance R_squid
     -- input inductor L_i
     -- SQUID coupling factor k_i
+    -- readout capacitor C_1
     -- readout inductor L_1
     -- transformer inductor L_2
     -- transformer coupling factor k_f
@@ -184,6 +185,60 @@ def fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_
     Z_C_1 = fn_Z_C_1(omega,C_1)
     Z_squid_p = fn_Z_squid_p(omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f)
     return N_series/N_parallel * Z_crystal + Z_C_1 + Z_L_1 + Z_squid_p
+
+######## AXION CURRENTS ######################################
+def fn_I_axion_p(omega,xi_11,zeta_11,h_11,c_11,P_nuc,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel):
+    """Total axion-induced current through primary circuit, as a function of:
+    -- angular frequency omega
+    -- piezoaxionic tensor component xi_11
+    -- electroaxionic tensor component zeta_11
+    -- piezoelectric tensor component h_11
+    -- elastic stiffness tensor component c_11
+    -- the spin polarization fraction P_nuc
+    -- crystal thickness l = l_1
+    -- longitudinal sound speed v
+    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
+    -- impermittivity tensor component beta_11
+    -- EM coupling factor k^2
+    -- dynamical inductance L_squid and resistance R_squid
+    -- input inductor L_i
+    -- SQUID coupling factor k_i
+    -- readout capacitor C_1
+    -- readout inductor L_1
+    -- transformer inductor L_2
+    -- transformer coupling factor k_f
+    -- number of crystals in series (N_series) and parallel (N_parallel).
+    """
+    V_axion = fn_V_axion(omega,xi_11,zeta_11,l,v,h_11,c_11,N_series,P_nuc)
+    Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel)
+    I_axion_p = V_axion / Z_total
+    return I_axion_p
+
+def fn_flux_axion_squid(omega,xi_11,zeta_11,h_11,c_11,P_nuc,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel):
+    """Total axion-induced flux through SQUID, as a function of:
+    -- angular frequency omega
+    -- piezoaxionic tensor component xi_11
+    -- electroaxionic tensor component zeta_11
+    -- piezoelectric tensor component h_11
+    -- elastic stiffness tensor component c_11
+    -- the spin polarization fraction P_nuc
+    -- crystal thickness l = l_1
+    -- longitudinal sound speed v
+    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
+    -- impermittivity tensor component beta_11
+    -- EM coupling factor k^2
+    -- dynamical inductance L_squid and resistance R_squid
+    -- input inductor L_i
+    -- SQUID coupling factor k_i
+    -- readout capacitor C_1
+    -- readout inductor L_1
+    -- transformer inductor L_2
+    -- transformer coupling factor k_f
+    -- number of crystals in series (N_series) and parallel (N_parallel).
+    """
+    I_axion_p = fn_I_axion_p(omega,xi_11,zeta_11,h_11,c_11,P_nuc,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel)
+    flux = I_axion_p * (k_f * k_i * np.sqrt(L_1 * L_2 * L_i * L_squid) / (L_i + L_2) )
+    return flux
 
 ######## CRYSTAL QUALITY FACTOR ##############################
 def fn_Q_factor(omega,l,v,a,b,beta_11,k2):
