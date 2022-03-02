@@ -279,7 +279,7 @@ def fn_S_flux_squid(omega,S_flux_squid):
     return S_flux_squid
 
 def fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel):
-    """Squid flux voltage noise as referred to primary circuit, as a function of:
+    """Squid imprecision voltage noise as referred to primary circuit, as a function of:
     -- temperature T
     -- angular frequency omega
     -- crystal thickness l = l_1
@@ -301,8 +301,32 @@ def fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, 
     Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel)
     return 4 * np.abs(Z_total)**2 * S_flux/(k_f**2 * k_i**2 * np.real(L_1) * L_squid)
 
+def fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel):
+    """Squid back-action noise as referred to primary circuit (assuming quantum limit), as a function of:
+    -- temperature T
+    -- angular frequency omega
+    -- crystal thickness l = l_1
+    -- longitudinal sound speed v
+    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
+    -- impermittivity tensor component beta_11
+    -- EM coupling factor k^2
+    -- dynamical inductance L_squid and resistance R_squid
+    -- input inductor L_i
+    -- SQUID coupling factor k_i
+    -- readout capacitor C_1
+    -- readout inductor L_1
+    -- transformer inductor L_2
+    -- transformer coupling factor k_f
+    -- SQUID flux noise S_flux_squid
+    -- number of crystals in series (N_series) and parallel (N_parallel).
+    """
+    S_V_P_squid_flux = fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, 
+                                           L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel)
+    Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel)
+    return omega**2 * np.abs(Z_total)**2 / S_V_P_squid_flux
+
 def fn_S_V_p_squid_BI(T, omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f):
-    """Squid backaction voltage noise as referred to primary circuit, as a function of:
+    """Squid back-impedance voltage noise as referred to primary circuit, as a function of:
     -- temperature T
     -- angular frequency omega
     -- dynamical inductance L_squid and resistance R_squid
@@ -353,9 +377,10 @@ def fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, 
     S_V_p_crystals = fn_S_V_p_crystal_TE(T,omega,l,v,a,b,beta_11,k2,N_series,N_parallel)
     S_V_p_L_1 = fn_S_V_p_L_1(T,omega,L_1)
     S_V_p_squid_flux = fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel)
+    S_V_p_squid_BA = fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel);
     S_V_p_squid_BI = fn_S_V_p_squid_BI(T, omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f);
     S_V_p_magnetization = fn_S_V_p_magnetization(omega, T_2, mu_N, n_N, l, a, b);
-    return S_V_p_crystals + S_V_p_L_1 + S_V_p_squid_BI + S_V_p_squid_flux + S_V_p_magnetization
+    return S_V_p_crystals + S_V_p_L_1 + S_V_p_squid_flux + S_V_p_squid_BA + S_V_p_squid_BI + S_V_p_magnetization
 
 def fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
     """Total theta noise as a function of:
