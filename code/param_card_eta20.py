@@ -67,4 +67,4 @@ eps_L_1 = 1e-6; # loss angle of readout inductor
 Phi0 = np.pi/ElectronCharge
 S_flux_squid = (10**-6 * Phi0 / np.sqrt(Hz))**2
 
-eta = 1
+eta = 20
