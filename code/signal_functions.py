@@ -508,7 +508,6 @@ def fn_S_theta_opt(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, 
     -- piezoaxionic tensor xi_11
     -- electroaxionic tensor zeta_11
     -- nuclear spin polarization P_nuc
-    
     -- number of crystals in series (N_series) and parallel (N_parallel).
     """
     V_over_theta = fn_V_axion(omega,xi_11/ThetaAxion,zeta_11/ThetaAxion,l,v,h_11,c_11,N_series,P_nuc)
