@@ -54,8 +54,8 @@ k2 = fn_k2_TE(h_11,c_11,beta_11); #EM coupling factor
 ##### READOUT PARAMETERS #####
 ##############################
 
-L_squid = 5e-11 * Henry # SQUID dynamical inductance
-R_squid = 300 * Ohm # SQUID dynamical resistance
+L_squid = 7e-11 * Henry # SQUID dynamical inductance
+R_squid = 30 * Ohm # SQUID dynamical resistance
 
 k_i = 0.75 # SQUID input coupling factor
 L_i = 5e-11 * Henry # input inductance
