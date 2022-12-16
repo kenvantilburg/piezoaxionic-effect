@@ -43,7 +43,7 @@ for j,C_1 in enumerate(vec_C_1):
                 vec_L_2[i,j] = L_2
             else:
                 pass
-        except ValueError:
+        except RuntimeWarning:
             pass
         
 fn_L_1_down = sp.interpolate.interp1d(omega_0 * arr_omega_opt[np.isfinite(arr_omega_opt[:,0]),0],vec_L_1[0][np.isfinite(arr_omega_opt[:,0])],bounds_error=False,fill_value=np.nan)
@@ -81,6 +81,13 @@ for i,L_1 in enumerate(tqdm(vec_L_1_branch)):
     else:
         print(L_2, C_1, L_1, end='')
 vec_theta_sens_plot = vec_theta_sens_plot**(-1/4)
+
+omega = (omega_res + omega_0)/2
+L_1_n = fn_L_1_down(omega) * (1 - 1j * eps_L_1)
+C_1 = vec_C_1[0]
+L_2 = L2_find(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1_n, k_f, eta, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel,1, np.real(L_i))[0]
+vec_theta_sens_shot = fn_theta_sens(t_shot,Q_a,T,vec_omega_plot,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid,L_i, k_i,C_1,L_1_n,L_2,k_f,eta, S_flux_squid,
+                                    T_2,mu_N,n_N,xi_11,zeta_11,P_nuc,N_series,N_parallel)
 
 
 np.save(dir_data+'omegafid.npy', [omega_res,omega_0])

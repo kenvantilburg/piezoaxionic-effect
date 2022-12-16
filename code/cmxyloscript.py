@@ -55,7 +55,7 @@ def xylo_scan(l):
                     vec_L_2[i,j] = L_2
                 else:
                     pass
-            except ValueError:
+            except RuntimeWarning:
                 pass
     fn_L_1_down = interp1d(omega_0 * arr_omega_opt[np.isfinite(arr_omega_opt[:,0]),0],vec_L_1[0][np.isfinite(arr_omega_opt[:,0])],bounds_error=False,fill_value=np.nan)
     fn_L_1_up = interp1d(omega_0 * arr_omega_opt[np.isfinite(arr_omega_opt[:,1]),1],vec_L_1[1][np.isfinite(arr_omega_opt[:,1])],bounds_error=False,fill_value=np.nan)    

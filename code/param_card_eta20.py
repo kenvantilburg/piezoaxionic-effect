@@ -58,7 +58,7 @@ L_squid = 7e-11 * Henry # SQUID dynamical inductance
 R_squid = 30 * Ohm # SQUID dynamical resistance
 
 k_i = 0.75 # SQUID input coupling factor
-L_i = 5e-11 * Henry # input inductance
+L_i = L_squid * Henry # input inductance
 k_f = 0.75 # transformer coupling factor
 
 eps_L_1 = 1e-6; # loss angle of readout inductor
