@@ -54,17 +54,16 @@ k2 = fn_k2_TE(h_11,c_11,beta_11); #EM coupling factor
 ##### READOUT PARAMETERS #####
 ##############################
 
-L_squid = 5e-9 * Henry # SQUID dynamical inductance
-R_squid = 8 * Ohm # SQUID dynamical resistance
+L_squid = 1e-10 * Henry # SQUID dynamical inductance
+R_squid = 10 * Ohm # SQUID dynamical resistance
 
 k_i = 0.75 # SQUID input coupling factor
-L_i = L_squid # input inductance
+L_i = 1e-6 * Henry # input inductance
 k_f = 0.75 # transformer coupling factor
-L_2 = L_i # transformer inductance
 
 eps_L_1 = 1e-6; # loss angle of readout inductor
 
 Phi0 = np.pi/ElectronCharge
-S_flux_squid = (10**-6 * Phi0 / np.sqrt(Hz))**2
+S_flux_squid = (2*10**-7 * Phi0 / np.sqrt(Hz))**2
 
 eta = 20

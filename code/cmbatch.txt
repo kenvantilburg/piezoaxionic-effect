@@ -1,0 +1,11 @@
+#!/bin/bash -l
+#SBATCH --verbose
+#SBATCH --partition=defq
+#SBATCH --nodes 1
+#SBATCH --job-name=cmscan
+#SBATCH --mem 10090
+#SBATCH --time 24:00:00
+
+module load python
+
+python cmscript.py

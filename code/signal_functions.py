@@ -3,7 +3,7 @@ import scipy as sp
 from my_units import *
 from tqdm import tqdm
 from scipy.interpolate import interp1d
-from scipy.optimize import fmin, minimize
+from scipy.optimize import fmin, minimize, fsolve, brentq
 
 ######## TANGENT EXPANSION #######################
 def fn_tan_expansion(x,k_min,k_max):
@@ -143,13 +143,16 @@ def fn_Z_C_1(omega,C_1):
     """Readout capacitor impedance as a function of angular frequency omega and capacitance C_1."""
     return 1/(1j * omega * C_1)
 
-def fn_Z_squid(omega, L_squid, R_squid):
-    """Dynamic squid impedance as a function of angular frequency omega and dynamical inductance L_squid and resistance R_squid."""
-    return ((1j * omega * L_squid)**-1 + (R_squid)**-1)**-1
+def fn_Z_squid(omega, L_squid, R_squid, L_i, k_i, L_2):
+    """Dynamic squid impedance as a function of angular frequency omega, inductance L_squid, resistance R_squid and SQUID coupling factor k_i."""
+    alpha_e_squared = k_i**2/(1+np.real(L_2/L_i))
+    R_dyn_red = R_squid
+    L_dyn_red = (1-alpha_e_squared) * L_squid / 0.1
+    return ((1j * omega * L_dyn_red)**-1 + (R_dyn_red)**-1)**-1
 
-def fn_Z_squid_t(omega, L_squid, R_squid, L_i, k_i):
-    """Squid back-impedance on transformer as a function of angular frequency omega, dynamical inductance L_squid and resistance R_squid, input inductor L_i, and SQUID coupling factor k_i."""
-    return omega**2 * k_i**2 * (L_i * L_squid) / fn_Z_squid(omega, L_squid, R_squid)
+def fn_Z_squid_t(omega, L_squid, R_squid, L_i, k_i, L_2):
+    """Squid back-impedance on transformer as a function of angular frequency omega, inductance L_squid and resistance R_squid, input inductor L_i, and SQUID coupling factor k_i."""
+    return omega**2 * k_i**2 * np.real(L_i) * np.real(L_squid) / fn_Z_squid(omega, L_squid, R_squid, L_i, k_i, L_2)
 
 def fn_Z_squid_p(omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f):
     """Squid back-impedance on primary circuit, as a function of:
@@ -161,7 +164,7 @@ def fn_Z_squid_p(omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f):
     -- transformer inductor L_2
     -- transformer coupling factor k_f
     """
-    return omega**2 * k_f**2 * (L_1 * L_2) / (1j * omega * L_2 + 1j * omega * L_1 + fn_Z_squid_t(omega, L_squid, R_squid, L_i, k_i))
+    return omega**2 * k_f**2 * np.real(L_1) * np.real(L_2) / (1j * omega * L_2 + 1j * omega * L_i + fn_Z_squid_t(omega, L_squid, R_squid, L_i, k_i, L_2))
 
 # total circuit impedance
 def fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel):
@@ -237,7 +240,7 @@ def fn_flux_axion_squid(omega,xi_11,zeta_11,h_11,c_11,P_nuc,l,v,a,b,beta_11,k2,L
     -- number of crystals in series (N_series) and parallel (N_parallel).
     """
     I_axion_p = fn_I_axion_p(omega,xi_11,zeta_11,h_11,c_11,P_nuc,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel)
-    flux = I_axion_p * (k_f * k_i * np.sqrt(L_1 * L_2 * L_i * L_squid) / (L_i + L_2) )
+    flux = I_axion_p * (k_f * k_i * np.sqrt(np.real(L_1) * L_2 * L_i * L_squid) / (L_i + L_2) )
     return flux
 
 ######## CRYSTAL QUALITY FACTOR ##############################
@@ -299,31 +302,9 @@ def fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, 
     """
     S_flux = fn_S_flux_squid(omega,S_flux_squid);
     Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel)
-    return np.abs(Z_total)**2 * S_flux * (L_i + L_2)**2/(k_f**2 * k_i**2 * np.real(L_1 * L_2 * L_i * L_squid))
+    return np.abs(Z_total)**2 * S_flux *  (np.real(L_i) + L_2)**2/(k_f**2 * k_i**2 * np.real(L_1) * L_2 * L_i * L_squid)
 
-def fn_S_V_p_squid_flux_opt(T,omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta,N_series,N_parallel):
-    """Squid imprecision voltage noise as referred to primary circuit at optimal operating point, as a function of:
-    -- temperature T
-    -- angular frequency omega
-    -- crystal thickness l = l_1
-    -- longitudinal sound speed v
-    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
-    -- impermittivity tensor component beta_11
-    -- EM coupling factor k^2
-    -- dynamical inductance L_squid and resistance R_squid
-    -- input inductor L_i
-    -- SQUID coupling factor k_i
-    -- readout capacitor C_1
-    -- readout inductor L_1
-    -- transformer inductor L_2
-    -- transformer coupling factor k_f
-    -- minimum noise temperature divided by quantum limit (omega/2): eta.
-    -- number of crystals in series (N_series) and parallel (N_parallel)
-    """
-    Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel) #strictly speaking, need to optimize over L_2 but squid backreaction is so small this is complication is irrelevant
-    return np.abs(Z_total)**2 / np.real(Z_total) * eta**2 * omega**2 / (2*T)
-
-def fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel):
+def fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid,N_series,N_parallel):
     """Squid back-action noise as referred to primary circuit (assuming quantum limit), as a function of:
     -- temperature T
     -- angular frequency omega
@@ -345,29 +326,7 @@ def fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_
     S_V_P_squid_flux = fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, 
                                            L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel)
     Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel)
-    return omega**2 * np.abs(Z_total)**2 / S_V_P_squid_flux
-
-def fn_S_V_p_squid_BA_opt(T,omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta,N_series,N_parallel):
-    """Squid back-action noise voltage noise as referred to primary circuit at optimal operating point, as a function of:
-    -- temperature T
-    -- angular frequency omega
-    -- crystal thickness l = l_1
-    -- longitudinal sound speed v
-    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
-    -- impermittivity tensor component beta_11
-    -- EM coupling factor k^2
-    -- dynamical inductance L_squid and resistance R_squid
-    -- input inductor L_i
-    -- SQUID coupling factor k_i
-    -- readout capacitor C_1
-    -- readout inductor L_1
-    -- transformer inductor L_2
-    -- transformer coupling factor k_f
-    -- minimum noise temperature divided by quantum limit (omega/2): eta.
-    -- number of crystals in series (N_series) and parallel (N_parallel)
-    """
-    Z_total = fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel) #strictly speaking, need to optimize over L_2 but squid backreaction is so small this is complication is irrelevant
-    return 2 * T * np.real(Z_total)
+    return omega**2 * np.abs(Z_total)**2 * eta**2 / S_V_P_squid_flux
 
 def fn_S_V_p_squid_BI(T, omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f):
     """Squid back-impedance voltage noise as referred to primary circuit, as a function of:
@@ -396,7 +355,7 @@ def fn_S_V_p_magnetization(omega, T_2, mu_N, n_N, l, a, b):
     Vol = l * A
     return (1/8) * mu_N**2 * n_N * Vol**(-1) * T_2**(-1) * A**2 * omega**0
 
-def fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, N_series,N_parallel):
+def fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid, T_2, mu_N, n_N, N_series,N_parallel):
     """Total voltage noise as referred to primary circuit, as a function of:
     -- temperature T
     -- angular frequency omega
@@ -421,42 +380,12 @@ def fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, 
     S_V_p_crystals = fn_S_V_p_crystal_TE(T,omega,l,v,a,b,beta_11,k2,N_series,N_parallel)
     S_V_p_L_1 = fn_S_V_p_L_1(T,omega,L_1)
     S_V_p_squid_flux = fn_S_V_p_squid_flux(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel)
-    S_V_p_squid_BA = fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,S_flux_squid,N_series,N_parallel);
+    S_V_p_squid_BA = fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid,N_series,N_parallel);
     S_V_p_squid_BI = fn_S_V_p_squid_BI(T, omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f);
     S_V_p_magnetization = fn_S_V_p_magnetization(omega, T_2, mu_N, n_N, l, a, b);
     return S_V_p_crystals + S_V_p_L_1 + S_V_p_squid_flux + S_V_p_squid_BA + S_V_p_squid_BI + S_V_p_magnetization
 
-def fn_S_V_p_total_opt(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, T_2, mu_N, n_N, N_series,N_parallel):
-    """Total voltage noise as referred to primary circuit at optimal SQUID operating conditions, as a function of:
-    -- temperature T
-    -- angular frequency omega
-    -- crystal thickness l = l_1
-    -- longitudinal sound speed v
-    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
-    -- impermittivity tensor component beta_11
-    -- EM coupling factor k^2
-    -- dynamical inductance L_squid and resistance R_squid
-    -- input inductor L_i
-    -- SQUID coupling factor k_i
-    -- readout capacitor C_1
-    -- readout inductor L_1
-    -- transformer inductor L_2
-    -- transformer coupling factor k_f
-    -- minimum noise temperature divided by quantum limit (omega/2): eta.
-    -- transverse spin coherence time T_2
-    -- nuclear magnetic moment mu_N
-    -- nuclear spin number density n_N
-    -- number of crystals in series (N_series) and parallel (N_parallel).
-    """
-    S_V_p_crystals = fn_S_V_p_crystal_TE(T,omega,l,v,a,b,beta_11,k2,N_series,N_parallel)
-    S_V_p_L_1 = fn_S_V_p_L_1(T,omega,L_1)
-    S_V_p_squid_flux = fn_S_V_p_squid_flux_opt(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta,N_series,N_parallel)
-    S_V_p_squid_BA = fn_S_V_p_squid_BA_opt(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta,N_series,N_parallel);
-    S_V_p_squid_BI = fn_S_V_p_squid_BI(T, omega, L_squid, R_squid, L_i, k_i, L_1, L_2, k_f);
-    S_V_p_magnetization = fn_S_V_p_magnetization(omega, T_2, mu_N, n_N, l, a, b);
-    return S_V_p_crystals + S_V_p_L_1 + S_V_p_squid_flux + S_V_p_squid_BA + S_V_p_squid_BI + S_V_p_magnetization
-
-def fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
+def fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
     """Total theta noise as a function of:
     -- temperature T
     -- angular frequency omega
@@ -482,11 +411,61 @@ def fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i,
     -- number of crystals in series (N_series) and parallel (N_parallel).
     """
     V_over_theta = fn_V_axion(omega,xi_11/ThetaAxion,zeta_11/ThetaAxion,l,v,h_11,c_11,N_series,P_nuc)
-    S_V_p = fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, N_series,N_parallel)
+    S_V_p = fn_S_V_p_total(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid, T_2, mu_N, n_N, N_series,N_parallel)
     return S_V_p / V_over_theta**2
 
-def fn_S_theta_opt(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
-    """Total theta noise at optimal SQUID operating conditions, as a function of:
+######## OPTIMIZATION ##############################
+
+def res_freq(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel, branch):
+    """find the fractional resonant frequency for a given branch, as a function of:
+    -- temperature T
+    -- crystal thickness l = l_1
+    -- longitudinal sound speed v
+    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
+    -- impermittivity tensor component beta_11
+    -- EM coupling factor k^2
+    -- dynamical inductance L_squid and resistance R_squid
+    -- input inductor L_i
+    -- SQUID coupling factor k_i
+    -- readout capacitor C_1
+    -- readout inductor L_1
+    -- transformer inductor L_2
+    -- transformer coupling factor k_f
+    -- SQUID flux noise S_flux_squid
+    -- transverse spin coherence time T_2
+    -- nuclear magnetic moment mu_N
+    -- nuclear spin number density n_N
+    -- piezoaxionic tensor xi_11
+    -- electroaxionic tensor zeta_11
+    -- nuclear spin polarization P_nuc
+    -- number of crystals in series (N_series) and parallel (N_parallel)
+    -- branch (below or above resonance) labelled 0 or 1.
+    """
+    omega_0 = np.abs(fn_omega_n(l,v,1));
+    omega_res = fn_omega_res(l,v,h_11,c_11,beta_11)
+    def fun_Z(omega_frac):
+        return np.imag(fn_Z_total(omega_frac * omega_0,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, N_series,N_parallel))
+    if branch==0:
+        try:
+            omega_frac1 = brentq(f=fun_Z,a=(4*omega_res-3*omega_0)/omega_0,b=(1-1e-10),xtol=1e-20)
+            omega_frac2 = np.nan
+        except ValueError:
+            omega_frac1 = np.nan
+            omega_frac2 = np.nan
+    elif branch==1:
+        try:
+            omega_frac1 = np.nan
+            omega_frac2 = brentq(f=fun_Z,a=1+1e-10,b=(3*omega_0-2*omega_res)/omega_0,xtol=1e-20)
+        except ValueError:
+            omega_frac1 = np.nan
+            omega_frac2 = np.nan
+    else:
+        print("branch must be 0 or 1")
+    return np.array([omega_frac1,omega_frac2])
+
+        
+def BA_crit(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta,S_flux_squid, N_series,N_parallel):
+    """criteria for optimised back action from arXiv:1803.01627:
     -- temperature T
     -- angular frequency omega
     -- crystal thickness l = l_1
@@ -501,23 +480,57 @@ def fn_S_theta_opt(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, 
     -- readout inductor L_1
     -- transformer inductor L_2
     -- transformer coupling factor k_f
-    -- minimum noise temperature divided by quantum limit (omega/2): eta.
+    -- SQUID flux noise S_flux_squid
     -- transverse spin coherence time T_2
     -- nuclear magnetic moment mu_N
     -- nuclear spin number density n_N
     -- piezoaxionic tensor xi_11
     -- electroaxionic tensor zeta_11
     -- nuclear spin polarization P_nuc
-    -- number of crystals in series (N_series) and parallel (N_parallel).
-    """
-    V_over_theta = fn_V_axion(omega,xi_11/ThetaAxion,zeta_11/ThetaAxion,l,v,h_11,c_11,N_series,P_nuc)
-    S_V_p = fn_S_V_p_total_opt(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, T_2, mu_N, n_N, N_series,N_parallel)
-    return S_V_p / V_over_theta**2
+    -- number of crystals in series (N_series) and parallel (N_parallel)
+    -- branch (below or above resonance) labelled 0 or 1.
+    """    
+    return  np.abs(2 * T * np.real(fn_Z_total(omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,N_series,N_parallel))/fn_S_V_p_squid_BA(T, omega,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f,eta, S_flux_squid,N_series,N_parallel)-1)
 
+
+def L2_find(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, k_f,eta, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel,branch, x0):
+    """Find the value of L2 that minimises the BA crit, as a function of:
+    -- temperature T
+    -- angular frequency omega
+    -- crystal thickness l = l_1
+    -- longitudinal sound speed v
+    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
+    -- impermittivity tensor component beta_11
+    -- EM coupling factor k^2
+    -- dynamical inductance L_squid and resistance R_squid
+    -- input inductor L_i
+    -- SQUID coupling factor k_i
+    -- readout capacitor C_1
+    -- readout inductor L_1
+    -- transformer inductor L_2
+    -- transformer coupling factor k_f
+    -- SQUID flux noise S_flux_squid
+    -- transverse spin coherence time T_2
+    -- nuclear magnetic moment mu_N
+    -- nuclear spin number density n_N
+    -- piezoaxionic tensor xi_11
+    -- electroaxionic tensor zeta_11
+    -- nuclear spin polarization P_nuc
+    -- number of crystals in series (N_series) and parallel (N_parallel)
+    -- branch (below or above resonance) labelled 0 or 1
+    -- Starting guess for L_2.
+    """   
+    omega_0 = np.abs(fn_omega_n(l,v,1))
+    def omega_frac(L_2_new, branch):
+        return res_freq(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2_new, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel, branch)[branch]
+    def crit(L_2_new):
+        return BA_crit(T, omega_frac(L_2_new, branch)*omega_0,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2_new, k_f,eta,S_flux_squid, N_series,N_parallel)
+    minimum = sp.optimize.minimize(crit, x0, method='Nelder-Mead', bounds=((np.real(L_i), 10000*np.real(L_1)),)).x[0]
+    return [minimum, omega_frac(minimum, branch), crit(minimum)]
 
 ######## SENSITIVITY ##############################
 
-def fn_theta_sens(t_shot, Q_a, T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
+def fn_theta_sens(t_shot, Q_a, T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series, N_parallel):
     """theta_axion sensitivity as a function of:
     -- shot time t_shot
     -- axion signal quality factor Q_a
@@ -544,35 +557,5 @@ def fn_theta_sens(t_shot, Q_a, T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_
     -- nuclear spin polarization P_nuc
     -- number of crystals in series (N_series) and parallel (N_parallel).
     """
-    S = fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel)
-    return S**(1/2) * t_shot**(-1/4) * (Q_a * 2*np.pi / omega)**(-1/4)
-
-def fn_theta_sens_opt(t_shot, Q_a, T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel):
-    """theta_axion sensitivity at optimal SQUID operating conditions, as a function of:
-    -- shot time t_shot
-    -- axion signal quality factor Q_a
-    -- temperature T
-    -- angular frequency omega
-    -- crystal thickness l = l_1
-    -- longitudinal sound speed v
-    -- transverse aspect ratios a = l_2 / l_1 and b = l_3 / l_1
-    -- impermittivity tensor component beta_11
-    -- EM coupling factor k^2
-    -- dynamical inductance L_squid and resistance R_squid
-    -- input inductor L_i
-    -- SQUID coupling factor k_i
-    -- readout capacitor C_1
-    -- readout inductor L_1
-    -- transformer inductor L_2
-    -- transformer coupling factor k_f
-    -- SQUID flux noise S_flux_squid
-    -- transverse spin coherence time T_2
-    -- nuclear magnetic moment mu_N
-    -- nuclear spin number density n_N
-    -- piezoaxionic tensor xi_11
-    -- electroaxionic tensor zeta_11
-    -- nuclear spin polarization P_nuc
-    -- number of crystals in series (N_series) and parallel (N_parallel).
-    """
-    S = fn_S_theta_opt(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel)
+    S = fn_S_theta(T, omega,l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2, k_f, eta, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel)
     return S**(1/2) * t_shot**(-1/4) * (Q_a * 2*np.pi / omega)**(-1/4)
