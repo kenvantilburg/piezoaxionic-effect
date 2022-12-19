@@ -525,7 +525,7 @@ def L2_find(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1
         return res_freq(T, l,v,a,b,h_11,c_11,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2_new, k_f, S_flux_squid, T_2, mu_N, n_N, xi_11, zeta_11, P_nuc, N_series,N_parallel, branch)[branch]
     def crit(L_2_new):
         return BA_crit(T, omega_frac(L_2_new, branch)*omega_0,l,v,a,b,beta_11,k2,L_squid, R_squid, L_i, k_i, C_1, L_1, L_2_new, k_f,eta,S_flux_squid, N_series,N_parallel)
-    minimum = sp.optimize.minimize(crit, x0, method='Nelder-Mead', bounds=((np.real(L_i), 100000*np.real(L_i)),)).x[0]
+    minimum = sp.optimize.minimize(crit, x0, method='Nelder-Mead', bounds=((np.real(L_i), 10000*np.real(L_1)),)).x[0]
     return [minimum, omega_frac(minimum, branch), crit(minimum)]
 
 ######## SENSITIVITY ##############################
