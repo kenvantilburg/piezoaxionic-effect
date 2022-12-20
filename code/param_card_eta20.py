@@ -64,6 +64,6 @@ k_f = 0.75 # transformer coupling factor
 eps_L_1 = 1e-6; # loss angle of readout inductor
 
 Phi0 = np.pi/ElectronCharge
-S_flux_squid = (2*10**-7 * Phi0 / np.sqrt(Hz))**2
+S_flux_squid = (2.5*10**-7 * Phi0 / np.sqrt(Hz))**2
 
 eta = 20
